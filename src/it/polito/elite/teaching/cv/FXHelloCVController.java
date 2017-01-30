@@ -1,14 +1,21 @@
 package it.polito.elite.teaching.cv;
 
+import java.io.ByteArrayInputStream;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 
+import org.opencv.core.Core;
 import org.opencv.core.Mat;
+import org.opencv.core.MatOfByte;
+import org.opencv.core.Scalar;
 import org.opencv.imgproc.Imgproc;
+import org.opencv.highgui.Highgui;
 import org.opencv.highgui.VideoCapture;
 
 import it.polito.elite.teaching.cv.utils.Utils;
+import javafx.application.Platform;
+import javafx.beans.property.ObjectProperty;
 import javafx.event.ActionEvent;
 import javafx.fxml.FXML;
 import javafx.scene.control.Button;
@@ -17,8 +24,8 @@ import javafx.scene.image.ImageView;
 
 /**
  * The controller for our application, where the application logic is
- * implemented. It handles the button for starting/stopping the camera and the
- * acquired video stream.
+ * implemented. It handles the button for starting/stopping the camera,
+ * video processing, and the acquired video stream.
  */
 public class FXHelloCVController
 {
@@ -29,19 +36,50 @@ public class FXHelloCVController
 	@FXML
 	private ImageView currentFrame;
 	
+	//Integers for thresholding values, used a little later
+	int hueStart;
+	int satStart;
+	int valStart;
+	int hueStop;
+	int satStop;
+	int valStop;
+	
 	// a timer for acquiring the video stream
 	private ScheduledExecutorService timer;
 	// Does two things: Creates a videocatpure instance and designates it "capture".
 	private VideoCapture capture = new VideoCapture();
 	// a flag to change the button behavior
 	private boolean cameraActive = false;
-	// the id of the camera to be used
+	
+	//create properties of HSV values !Not implemented because I don't need to display HSV values atm!
+	/**
+	 * Method for Converting Mats back to frames.
+	 * @param frame
+	 * 			The {@link Mat} that represents the image to show in OpenCV
+	 * @return The actual {@link Image} to show
+	 */
+	private Image mat2Image (Mat frame)
+	{
+		MatOfByte buffer = new MatOfByte();
+		Highgui.imencode(".png", frame, buffer);
+		return new Image (new ByteArrayInputStream(buffer.toArray()));
+	}
+	//Used in converting Mats back into images
+	private <T> void onFXThread(final ObjectProperty<T> property, final T value)
+	{
+		Platform.runLater(new Runnable() {
+			
+			@Override
+			public void run()
+			{
+				property.set(value);
+			}
+		});
+	}
+	
 	
 	/**
-	 * The action triggered by pushing the button on the GUI
-	 *
-	 * @param event
-	 *            the push button event
+	 *Activates the camera feed and begins to display the image(s)
 	 */
 	@FXML
 	protected void startCamera(ActionEvent event)
@@ -65,9 +103,8 @@ public class FXHelloCVController
 					public void run()
 					{
 						// effectively grab and process a single frame
-						Mat frame = grabFrame();
+						Image imageToShow = grabFrame();
 						// convert and show the frame
-						Image imageToShow = Utils.mat2Image(frame);
 						updateImageView(currentFrame, imageToShow);
 					}
 				};
@@ -101,9 +138,10 @@ public class FXHelloCVController
 	 *
 	 * @return the {@link Mat} to show
 	 */
-	private Mat grabFrame()
+	private Image grabFrame()
 	{
-		// init everything
+		Image imageToShow = null;
+		// create Mats
 		Mat frame = new Mat();
 		
 		// check if the capture is open
@@ -113,12 +151,36 @@ public class FXHelloCVController
 			{
 				// read the current frame
 				this.capture.read(frame);
+				if (!frame.empty())
+				{
+					Mat mask = new Mat();
 				
-				// if the frame is not empty, process it- I TOOK THIS OUT BECAUSE I DO NOT WANT BLACK AND WHITE VIDEO
-				// im planning on adding an if statement here, as in the example.
-				// the imgproc refers to what is to be done with the image, mat refers to the scorce image, mat1 refers to the destination image, or the imageview in the FX code, and the next imgproc states more specifically what is to be done to the image.
-				//Imgproc.cvtColor(Mat, mat1 Imgproc.COLOR_RGB2GRAY);
 				
+				// if the frame is not empty, process it
+				// the imgproc refers to what is to be done with the image, In this case convert color formats.
+				//mat refers to the source image,
+				//mat1 refers to the destination image. 
+				//Mat1 and Mat2 must be frames that have been converted into matrices.
+				//and the next imgproc states more specifically what is to be done to the image. 
+				//In this case, change BGR color formated frames to an HSV format.
+				//Syntax: Imgproc.cvtColor(mat1, mat2, int)
+				Imgproc.cvtColor(frame, frame, Imgproc.COLOR_BGR2HSV);
+				
+				/**Get threshold values 
+				 * Right now this is going to be static in the code
+				 * Later I will add a function to change them externally, or
+				 * even a piece of code to automatically generate them.
+				 */
+				Scalar min = new Scalar(hueStart = 85, satStart = 40, valStart = 180, 0);
+				Scalar max = new Scalar(hueStop = 135, satStop = 255, valStop = 255, 255);
+				
+				//Implement the thresholding
+				Core.inRange(frame, min, max, mask);
+				//Show the mask
+				this.onFXThread(this.currentFrame.imageProperty(), this.mat2Image(mask));
+				//Convert a mat back to an image
+				imageToShow = mat2Image(mask);
+				}
 			}
 			catch (Exception e)
 			{
@@ -127,7 +189,7 @@ public class FXHelloCVController
 			}
 		}
 		
-		return frame;
+		return imageToShow;
 	}
 	
 	/**

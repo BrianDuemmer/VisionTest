@@ -3,5 +3,9 @@
 	<classpathentry kind="src" path="src"/>
 	<classpathentry kind="con" path="org.eclipse.jdt.launching.JRE_CONTAINER"/>
 	<classpathentry exported="true" kind="con" path="org.eclipse.jdt.USER_LIBRARY/opencv"/>
+	<classpathentry kind="lib" path="C:/Program Files (x86)/Oracle/JavaFX Scene Builder 2.0/app/SceneBuilderApp.jar"/>
+	<classpathentry kind="lib" path="C:/Program Files/Java/jdk1.8.0_101/javafx-src.zip"/>
+	<classpathentry kind="con" path="org.eclipse.fx.ide.jdt.core.JAVAFX_CONTAINER"/>
+	<classpathentry kind="lib" path="C:/Program Files/eclipse-java-mars-2-win32-x86_64/eclipse/plugins/org.eclipse.fx.ide.css.jfx8_2.4.0.201605112122.jar"/>
 	<classpathentry kind="output" path="bin"/>
 </classpath>
