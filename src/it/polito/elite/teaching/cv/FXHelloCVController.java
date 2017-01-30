@@ -178,7 +178,7 @@ public class FXHelloCVController
 				Core.inRange(frame, min, max, mask);
 				//Show the mask
 				this.onFXThread(this.currentFrame.imageProperty(), this.mat2Image(mask));
-				//Convert a mat back to an image
+				//Convert a mat back to an image and apply the mask
 				imageToShow = mat2Image(mask);
 				}
 			}
