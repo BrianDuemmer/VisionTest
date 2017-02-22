@@ -31,7 +31,7 @@ public class FXHelloCV extends Application
 			scene.getStylesheets().add(getClass().getResource("application.css").toExternalForm());
 			// create the stage with the given title and the previously created
 			// scene
-			primaryStage.setTitle("JavaFX meets OpenCV");
+			primaryStage.setTitle("223_ROBOT_VISION");
 			primaryStage.setScene(scene);
 			// show the GUI
 			primaryStage.show();

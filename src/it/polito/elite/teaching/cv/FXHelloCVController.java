@@ -1,13 +1,23 @@
 package it.polito.elite.teaching.cv;
 
+import java.awt.Point;
+import java.awt.image.BufferedImage;
 import java.io.ByteArrayInputStream;
+import java.io.File;
+import java.io.IOException;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 
+import javax.imageio.ImageIO;
+
 import org.opencv.core.Core;
 import org.opencv.core.Mat;
 import org.opencv.core.MatOfByte;
+import org.opencv.core.MatOfPoint;
+import org.opencv.core.Rect;
 import org.opencv.core.Scalar;
 import org.opencv.imgproc.Imgproc;
 import org.opencv.highgui.Highgui;
@@ -16,6 +26,7 @@ import org.opencv.highgui.VideoCapture;
 import it.polito.elite.teaching.cv.utils.Utils;
 import javafx.application.Platform;
 import javafx.beans.property.ObjectProperty;
+import javafx.embed.swing.SwingFXUtils;
 import javafx.event.ActionEvent;
 import javafx.fxml.FXML;
 import javafx.scene.control.Button;
@@ -24,41 +35,134 @@ import javafx.scene.image.ImageView;
 
 /**
  * The controller for our application, where the application logic is
- * implemented. It handles the button for starting/stopping the camera,
- * video processing, and the acquired video stream.
+ * implemented. This application controls the camera, applies masking 
+ * features, calculates angle and distance from a target (highlighted 
+ * with reflective tape), and indicates whether a shot fired from our
+ * robot's shooter will hit or miss. The program will then send all 
+ * that data to the robot's driver station.
  */
+
+
+/**
+ * 223 Vision Controller
+ * @author JT
+ */
+
+
+/**-------------------------------------------------\\
+//--------------------CHANGE LOG--------------------\\
+//--------------------------------------------------\\
+//Version 1.6, 2/21/17, 10:27PM- Created very basic way to implement this into the server code involving the creation of separate image files.
+    //TODO: Test server.
+    //TODO: Finish tracking algorithm.
+//Version 1.5, 2/17/17, 12:42PM- Began implementation of points and very base methods of tracking algorithm
+    //TODO: Correct methods.
+    //TODO: Implement the rest of the trig functions.
+//Version 1.4, 2/14/17, 8:49PM- Began removal of FXML code in favor of implementing VisionCommServer.
+ 	//: Finish removal of FXML.
+ 	//: Implement VisCommServer
+//Version 1.3, 2/7/17, 2:23PM- Fixed Thresholding, now attempting to apply a center point to the contour.
+	//TODO: Find the center of mass of the contoured area.
+	//: Separate the masked frame from the raw frame and output them to comm server.
+//Version 1.2, 2/4/17, 4:21PM- Contouring now works.
+	//: Find good threshold values.
+	//TODO: Find center of mass of contoured area, and robot's position.
+//Version 1.1, 2/3/17- Attempted to add contouring to the mask, not successful thus far. Either the camera's IP changed or the contouring code broke the connection. Back to work.
+	//: Fix contouring.
+//Version 1.0- Camera opens and mask is applied.
+	//TODO: Find Center of Mass of mask.
+	//TODO: Find positions of mask pixels.
+	//: Use that to find the robot's position.
+ */
+
 public class FXHelloCVController
 {
-	// the FXML button
-	@FXML
-	private Button button;
-	// the FXML image view
-	@FXML
-	private ImageView currentFrame;
+
 	
-	//Integers for thresholding values, used a little later
+	//Integers for thresholding values, used a little later. These integers will soon be obsolete.
 	int hueStart;
 	int satStart;
 	int valStart;
 	int hueStop;
 	int satStop;
 	int valStop;
+	//Integers representing the x coordinate (whole frame) and the y coordinate (whole frame).
+	int xf;
+	int yf;
 	
-	// a timer for acquiring the video stream
+	public Image raw;
+	public Image maskedImage;
+//////The center point of the frame.
+	public Point c;
+	{
+		c.setLocation(160, 120);
+	}
+
+
+	//The target's center point.
+	public Point t;
+
+	
+	// A timer for acquiring the video stream.
 	private ScheduledExecutorService timer;
-	// Does two things: Creates a videocatpure instance and designates it "capture".
+	// Creates a videocatpure instance and designates it "capture".
 	private VideoCapture capture = new VideoCapture();
-	// a flag to change the button behavior
+	// Boolean to show whether the camera is outputting.
 	private boolean cameraActive = false;
 	
 	//create properties of HSV values !Not implemented because I don't need to display HSV values atm!
+	
+//**************************************|
+//============*====MASK====*============|
+//**************************************|
+	
+	
+//******************************************
+//============*====CONTOURS====*============
+//******************************************
+	
+	/**
+	 * A method used to draw contours around the mask.
+	 */
+	private Mat drawContours(Mat maskedImage, Mat frame) 
+	{
+
+	//	 cv2.rectangle(img,(x,y),(x+w,y+h),(0,255,0),2)
+	//	Mat BwImage = new Mat();
+	//  Imgproc.cvtColor(frame, BwImage, Imgproc.COLOR_BGR2GRAY);
+		List<MatOfPoint> contour = new ArrayList<>();
+		Mat hierarchy = new Mat();
+		//Find any contours in the frame.
+		Imgproc.findContours(frame, contour, hierarchy, Imgproc.RETR_CCOMP, Imgproc.CHAIN_APPROX_SIMPLE);
+		if (hierarchy.size().height > 0 && hierarchy.size().width > 0)
+		{
+			for (int idx = 0; idx >= 0; idx = (int) hierarchy.get(0, idx)[0])
+			{
+				Imgproc.drawContours(maskedImage, contour, idx, new Scalar(0, 255, 0));
+				
+				Rect rect = Imgproc.boundingRect(contour.get (idx));
+				{
+					Imgproc.drawContours(frame, (List<MatOfPoint>) rect, 1, new Scalar( 255, 0, 0));
+				}
+			}
+		}
+
+
+		return frame;
+	}
+	//TODO: Find the Center point.
+
+	
+//*******************************************
+//============*====MAT2IMAGE====*============
+//*******************************************
 	/**
 	 * Method for Converting Mats back to frames.
 	 * @param frame
 	 * 			The {@link Mat} that represents the image to show in OpenCV
 	 * @return The actual {@link Image} to show
 	 */
-	private Image mat2Image (Mat frame)
+	private Image mat2Image(Mat frame)
 	{
 		MatOfByte buffer = new MatOfByte();
 		Highgui.imencode(".png", frame, buffer);
@@ -76,17 +180,21 @@ public class FXHelloCVController
 			}
 		});
 	}
-	
+
+//**********************************************
+//============*====VIDEOCAPTURE====*============
+//**********************************************
 	
 	/**
 	 *Activates the camera feed and begins to display the image(s)
 	 */
-	@FXML
+	//TODO: Remove FXML notes and implement it correctly into communications server.
+
 	protected void startCamera(ActionEvent event)
 	{
 		if (!this.cameraActive)
 		{
-			// start the video capture
+			// Start the video capture from the specified IP or DNS string.
 //			this.capture.open("C:/test/test-mjpeg.mov");
 			this.capture.open("http://10.2.23.26/mjpg/video.mjpg");
 			
@@ -95,68 +203,77 @@ public class FXHelloCVController
 			if (this.capture.isOpened())
 			{
 				this.cameraActive = true;
+				System.out.println("Camera open");
 				
-				// grab a frame every 33 ms (30 frames/sec)
+				// grab a frame every 33 ms (30 frames/sec).
 				Runnable frameGrabber = new Runnable() {
 					
 					@Override
 					public void run()
 					{
-						// effectively grab and process a single frame
+						// Effectively grab and process a single frame.
 						Image imageToShow = grabFrame();
-						// convert and show the frame
-						updateImageView(currentFrame, imageToShow);
+						BufferedImage bImage = SwingFXUtils.fromFXImage(imageToShow, null);
+						// Convert and show the frame.
+						// updateImageView(raw, imageToShow);
+						File raw = new File("raw.jpg");
+						try {
+							ImageIO.write(bImage, "jpg", raw);
+						} catch (IOException e) {
+							e.printStackTrace();
+						}
 					}
 				};
 				
 				this.timer = Executors.newSingleThreadScheduledExecutor();
 				this.timer.scheduleAtFixedRate(frameGrabber, 0, 50, TimeUnit.MILLISECONDS);
 				
-				// update the button content
-				this.button.setText("Stop Camera");
 			}
 			else
 			{
-				// log the error
+				// If there is an error in starting the camera, print an error message.
 				System.err.println("Camera is unreachable");
 			}
 		}
 		else
 		{
-			// the camera is not active at this point
+			// Make sure that the camera is not labeled as active if there was an error.
 			this.cameraActive = false;
-			// update again the button content
-			this.button.setText("Start Camera");
 			
-			// stop the timer
+			// Stop the timer.
 			this.stopAcquisition();
 		}
 	}
+	
+//*****************************************
+//============*====IMGPROC====*============
+//*****************************************
 	
 	/**
 	 * Get a frame from the opened video stream (if any)
 	 *
 	 * @return the {@link Mat} to show
 	 */
+
 	private Image grabFrame()
 	{
 		Image imageToShow = null;
-		// create Mats
+		// create Mat
 		Mat frame = new Mat();
 		
-		// check if the capture is open
+		// Check if the capture is open.
 		if (this.capture.isOpened())
 		{
 			try
 			{
-				// read the current frame
+				// Read the current frame.
 				this.capture.read(frame);
 				if (!frame.empty())
 				{
 					Mat mask = new Mat();
 				
 				
-				// if the frame is not empty, process it
+				// If the frame is not empty, process it.
 				// the imgproc refers to what is to be done with the image, In this case convert color formats.
 				//mat refers to the source image,
 				//mat1 refers to the destination image. 
@@ -168,23 +285,39 @@ public class FXHelloCVController
 				
 				/**Get threshold values 
 				 * Right now this is going to be static in the code
-				 * Later I will add a function to change them externally, or
-				 * even a piece of code to automatically generate them.
-				 */
-				Scalar min = new Scalar(hueStart = 85, satStart = 40, valStart = 180, 0);
-				Scalar max = new Scalar(hueStop = 135, satStop = 255, valStop = 255, 255);
+				 * This is the beginnings of a method to automate the intensity/value integer
+				 * TODO: CORRECT METHOD
 				
-				//Implement the thresholding
+				
+				 for(yf(0, 320))
+						{
+					for(xVal(0, 240))
+							{
+						I(xVal, yVal);
+							}
+						}
+						*/
+				
+				Scalar min = new Scalar(hueStart = 80, satStart = 50, valStart = 180, 0);
+				Scalar max = new Scalar(hueStop = 135, satStop = 250, valStop = 255, 255);
+				
+				//Implement the thresholding.
 				Core.inRange(frame, min, max, mask);
 				//Show the mask
-				this.onFXThread(this.currentFrame.imageProperty(), this.mat2Image(mask));
-				//Convert a mat back to an image and apply the mask
+				ImageView maskview = new ImageView();
+				maskview.setImage(maskedImage);
+				this.onFXThread(maskview.imageProperty(), this.mat2Image(mask));
+				//Convert a mat back to an image and apply the mask.
+				frame = this.drawContours(frame, mask);
 				imageToShow = mat2Image(mask);
+				BufferedImage bImageM = SwingFXUtils.fromFXImage(imageToShow, null);
+				File maskimg = new File("mask.jpg");
+				ImageIO.write(bImageM, "jpg", maskimg);
 				}
 			}
 			catch (Exception e)
 			{
-				// log the error
+				// Log the error.
 				System.err.println("Exception during the image elaboration: " + e);
 			}
 		}
@@ -192,6 +325,9 @@ public class FXHelloCVController
 		return imageToShow;
 	}
 	
+//*****************************************
+//============*====RELEASE====*============
+//*****************************************
 	/**
 	 * Stop the acquisition from the camera and release all the resources
 	 */
@@ -201,39 +337,29 @@ public class FXHelloCVController
 		{
 			try
 			{
-				// stop the timer
+				// Stop the timer.
 				this.timer.shutdown();
 				this.timer.awaitTermination(33, TimeUnit.MILLISECONDS);
 			}
 			catch (InterruptedException e)
 			{
-				// log any exception
+				// Log any exception.
 				System.err.println("Exception in stopping the frame capture, trying to release the camera now... " + e);
 			}
 		}
 		
 		if (this.capture.isOpened())
 		{
-			// release the camera
+			// Release the camera.
 			this.capture.release();
 		}
 	}
 	
+//***************************************
+//============*====CLOSE====*============
+//***************************************
 	/**
-	 * Update the {@link ImageView} in the JavaFX main thread
-	 * 
-	 * @param view
-	 *            the {@link ImageView} to update
-	 * @param image
-	 *            the {@link Image} to show
-	 */
-	private void updateImageView(ImageView view, Image image)
-	{
-		Utils.onFXThread(view.imageProperty(), image);
-	}
-	
-	/**
-	 * On application close, stop the acquisition from the camera
+	 * On application close, stop the acquisition from the camera.
 	 */
 	protected void setClosed()
 	{
