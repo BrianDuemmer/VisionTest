@@ -23,13 +23,10 @@ import org.opencv.imgproc.Imgproc;
 import org.opencv.highgui.Highgui;
 import org.opencv.highgui.VideoCapture;
 
-import it.polito.elite.teaching.cv.utils.Utils;
 import javafx.application.Platform;
 import javafx.beans.property.ObjectProperty;
 import javafx.embed.swing.SwingFXUtils;
 import javafx.event.ActionEvent;
-import javafx.fxml.FXML;
-import javafx.scene.control.Button;
 import javafx.scene.image.Image;
 import javafx.scene.image.ImageView;
 
@@ -75,9 +72,8 @@ import javafx.scene.image.ImageView;
 	//: Use that to find the robot's position.
  */
 
-public class FXHelloCVController
+public class VisionController
 {
-
 	
 	//Integers for thresholding values, used a little later. These integers will soon be obsolete.
 	int hueStart;
@@ -126,7 +122,7 @@ public class FXHelloCVController
 	 */
 	private Mat drawContours(Mat maskedImage, Mat frame) 
 	{
-
+System.out.println("Drawing contours...");
 	//	 cv2.rectangle(img,(x,y),(x+w,y+h),(0,255,0),2)
 	//	Mat BwImage = new Mat();
 	//  Imgproc.cvtColor(frame, BwImage, Imgproc.COLOR_BGR2GRAY);
@@ -142,7 +138,15 @@ public class FXHelloCVController
 				
 				Rect rect = Imgproc.boundingRect(contour.get (idx));
 				{
+					try
+					{
 					Imgproc.drawContours(frame, (List<MatOfPoint>) rect, 1, new Scalar( 255, 0, 0));
+					}
+					catch(Exception e)
+					{
+						System.err.println("Unchecked Cast in rectangle function");
+					}
+					
 				}
 			}
 		}
@@ -164,8 +168,9 @@ public class FXHelloCVController
 	 */
 	private Image mat2Image(Mat frame)
 	{
+		System.out.println("Converting Mat to Image...");
 		MatOfByte buffer = new MatOfByte();
-		Highgui.imencode(".png", frame, buffer);
+		Highgui.imencode(".jpg", frame, buffer);
 		return new Image (new ByteArrayInputStream(buffer.toArray()));
 	}
 	//Used in converting Mats back into images
@@ -190,20 +195,19 @@ public class FXHelloCVController
 	 */
 	//TODO: Remove FXML notes and implement it correctly into communications server.
 
-	protected void startCamera(ActionEvent event)
 	{
+		System.out.println("Establishing camera feed...");
 		if (!this.cameraActive)
 		{
 			// Start the video capture from the specified IP or DNS string.
 //			this.capture.open("C:/test/test-mjpeg.mov");
-			this.capture.open("http://10.2.23.26/mjpg/video.mjpg");
+			this.capture.open("http://10.2.23.80/mjpg/video.mjpg");
 			
 			
 			// is the video stream available?
 			if (this.capture.isOpened())
 			{
 				this.cameraActive = true;
-				System.out.println("Camera open");
 				
 				// grab a frame every 33 ms (30 frames/sec).
 				Runnable frameGrabber = new Runnable() {
@@ -216,7 +220,7 @@ public class FXHelloCVController
 						BufferedImage bImage = SwingFXUtils.fromFXImage(imageToShow, null);
 						// Convert and show the frame.
 						// updateImageView(raw, imageToShow);
-						File raw = new File("raw.jpg");
+						File raw = new File("src/raw.jpg");
 						try {
 							ImageIO.write(bImage, "jpg", raw);
 						} catch (IOException e) {
@@ -239,7 +243,7 @@ public class FXHelloCVController
 		{
 			// Make sure that the camera is not labeled as active if there was an error.
 			this.cameraActive = false;
-			
+
 			// Stop the timer.
 			this.stopAcquisition();
 		}
@@ -257,6 +261,7 @@ public class FXHelloCVController
 
 	private Image grabFrame()
 	{
+		System.out.println("Processing image...");
 		Image imageToShow = null;
 		// create Mat
 		Mat frame = new Mat();
@@ -311,7 +316,7 @@ public class FXHelloCVController
 				frame = this.drawContours(frame, mask);
 				imageToShow = mat2Image(mask);
 				BufferedImage bImageM = SwingFXUtils.fromFXImage(imageToShow, null);
-				File maskimg = new File("mask.jpg");
+				File maskimg = new File("src/mask.jpg");
 				ImageIO.write(bImageM, "jpg", maskimg);
 				}
 			}
@@ -333,6 +338,7 @@ public class FXHelloCVController
 	 */
 	private void stopAcquisition()
 	{
+		System.out.println("Releasing Capture");
 		if (this.timer!=null && !this.timer.isShutdown())
 		{
 			try
@@ -365,5 +371,5 @@ public class FXHelloCVController
 	{
 		this.stopAcquisition();
 	}
-	
+
 }
